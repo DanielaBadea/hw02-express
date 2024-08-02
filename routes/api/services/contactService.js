@@ -1,8 +1,8 @@
-const Contact = require("../../../validate/validateDB");
+const Contact = require("../../../validate/contactShema");
 
-async function updateStatusContact (contactId, {favorite}) {
+async function updateStatusContact (contactId, {favorite, owner}) {
     try{
-    const contact = await Contact.findById(contactId);
+    const contact = await Contact.findOne({ _id: contactId, owner });
     if(!contact){
         throw new Error ('Contact not found')
     }

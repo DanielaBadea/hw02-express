@@ -15,6 +15,8 @@ const contactSchema = Joi.object({
     'string.empty': 'missing required phone field',
     'string.min': 'phone must be at least 10 characters'
   }),
+  favorite: Joi.boolean(),
+  owner: Joi.string(),
 });
 
 const contactUpdateSchema = Joi.object({
@@ -27,7 +29,9 @@ const contactUpdateSchema = Joi.object({
   phone: Joi.string().min(10).messages({
     'string.min': 'phone must be at least 10 characters'
   }),
-}).or('name', 'email', 'phone').messages({
+  favorite: Joi.boolean(),
+  owner: Joi.string(),
+}).or('name', 'email', 'phone', 'favorite', 'owner').messages({
   'object.missing': 'missing fields'
 });
 

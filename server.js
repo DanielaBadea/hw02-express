@@ -14,7 +14,6 @@ console.log(dbConnection);
 // }).catch((err) => {
 //   console.error('Database connection error:', err);
 // });
-
 mongoose.connect(dbConnection)
 .then(()=> {
   console.log('Connected to the database');
