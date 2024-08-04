@@ -1,5 +1,6 @@
 const Contact = require("../../../validate/contactShema");
 
+
 async function updateStatusContact (contactId, {favorite, owner}) {
     try{
     const contact = await Contact.findOne({ _id: contactId, owner });

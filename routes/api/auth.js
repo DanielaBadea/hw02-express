@@ -4,7 +4,9 @@ const User = require('../../validate/userShema');
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const {validateUser} = require('../../validate/userJoi');
-const authMiddleware = require('../../middlewares/authMiddleware')
+const authMiddleware = require('../../middlewares/authMiddleware');
+const { use } = require('passport');
+const joi = require('joi')
 
 router.post('/register', async (req, res) => {
     const { email, password, subscription } = req.body;
@@ -93,5 +95,36 @@ router.get('/current', authMiddleware, async (req, res) => {
     const { email, subscription } = req.user;
     res.json({ email, subscription });
 });
+
+router.patch('/users', authMiddleware, async (req, res) => {
+    try {
+      const { subscription } = req.body;
+    //   const { error } = joi.object({
+    //     subscription: joi.string().valid('starter', 'pro', 'business').required()
+    //   }).validate({ subscription });
+  
+    //   if (error) {
+    //     console.error('Validation Error:', error.details[0].message);
+    //     return res.status(400).json({ message: error.details[0].message });
+    //   }
+
+    const { error } = validateUser(req.body);
+    if (error) {
+      return res.status(400).json({ message: error.details[0].message });
+    }
+  
+      const user = req.user;
+      user.subscription = subscription;
+      await user.save();
+  
+      res.json({
+        email: user.email,
+        subscription: user.subscription
+      });
+    } catch (error) {
+      console.error('Internal Server Error:', error);
+      res.status(500).json({ message: 'Internal Server Error' });
+    }
+  });
 
 module.exports = router;

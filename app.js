@@ -16,7 +16,7 @@ app.use(cors())
 app.use(express.json())
 app.use(passport.initialize());
 
-app.use('/api/', contactsRouter);
+app.use('/api/contacts', contactsRouter);
 app.use('/api/auth', usersRouter);
 
 app.use((req, res) => {
