@@ -5,8 +5,13 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const {validateUser} = require('../../validate/userJoi');
 const authMiddleware = require('../../middlewares/authMiddleware');
-const { use } = require('passport');
-const joi = require('joi')
+const gravatar = require('gravatar');
+const jimp = require('jimp');
+const fs = require('fs').promises;
+const { v4: uuidv4 } = require('uuid');
+const upload = require('../../helpers/configMulter');
+const path = require('path');
+
 
 router.post('/register', async (req, res) => {
     const { email, password, subscription } = req.body;
@@ -26,20 +31,24 @@ router.post('/register', async (req, res) => {
     }
 
     try {
-        const newUser = new User({ email, password, subscription });
+        const avatarURL = gravatar.url(email, { s: '250', r: 'pg', d: 'monsterid' }, true);
+        console.log(avatarURL);
+        const newUser = new User({ email, password, subscription, avatarURL });
         await newUser.setPassword(password);
         await newUser.save();
 
         res.status(201).json({
             user: {
                 email: newUser.email,
-                subscription: newUser.subscription
+                subscription: newUser.subscription,
+                avatarURL: newUser.avatarURL,
             }
         });
     } catch (error) {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 });
+
 router.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
@@ -125,6 +134,44 @@ router.patch('/users', authMiddleware, async (req, res) => {
       console.error('Internal Server Error:', error);
       res.status(500).json({ message: 'Internal Server Error' });
     }
-  });
+});
+
+const avatarDir = path.join(process.cwd(), 'public', 'avatars');
+
+router.patch('/users/avatars', authMiddleware, upload.single('avatar'), async (req, res, next) => {
+    const { _id } = req.user;
+    const file = req.file;
+    const { path: temporaryName, originalname } = file;
+    try {
+        if (!file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+        };
+        // await jimp.read(temporaryName).then((img) =>
+        //     img.resize(250, 250).quality(60).write(temporaryName)
+        // );
+        const img = await jimp.read(temporaryName);
+        await img.resize(250, 250).quality(60).writeAsync(temporaryName);
+
+        const uniqueName = uuidv4() + path.extname(originalname);
+        const storeFile = path.join(avatarDir, uniqueName);
+        await fs.rename(temporaryName, storeFile);
+
+        //   Actualizez userul cu noul avatar
+        const avatarURL = `/avatars/${uniqueName}`;
+        await User.findByIdAndUpdate(_id, { avatarURL });
+        res.status(200).json({
+            message: 'File uploaded successfully',
+            avatarURL,
+        });
+    } catch (err) {
+        // Șterge fișierul temporar în caz de eroare
+        try {
+            await fs.unlink(temporaryName);
+        } catch (unlinkErr) {
+            console.error('Error while deleting the temporary file:', unlinkErr);
+        }
+        return next(err);
+    }
+});
 
 module.exports = router;
