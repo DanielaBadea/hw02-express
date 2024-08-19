@@ -11,7 +11,9 @@ const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const upload = require('../../helpers/configMulter');
 const path = require('path');
+const sgMail = require('@sendgrid/mail')
 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 router.post('/register', async (req, res) => {
     const { email, password, subscription } = req.body;
@@ -33,7 +35,26 @@ router.post('/register', async (req, res) => {
     try {
         const avatarURL = gravatar.url(email, { s: '250', r: 'pg', d: 'monsterid' }, true);
         console.log(avatarURL);
-        const newUser = new User({ email, password, subscription, avatarURL });
+        const verificationToken = uuidv4();
+        const newUser = new User({ email, password, subscription, avatarURL, verificationToken });
+        const verificationLink =`http://localhost:3000/api/auth/users/verify/${verificationToken}`;
+
+        const msg = {
+            to: email,
+            from: 'badeadaniella@gmail.com',
+            subject: 'Verify your email address',
+            text: `Please verify your email address by clicking on the following link: ${verificationLink}`,
+            html: `<strong>Please verify your email address by clicking on the following link: <a href="${verificationLink}">Verify Email</a></strong>`,
+        }
+            sgMail
+            .send(msg)
+            .then(() => {
+                console.log('Email sent')
+            })
+            .catch((error) => {
+                console.error(error)
+            });
+        
         await newUser.setPassword(password);
         await newUser.save();
 
@@ -42,7 +63,9 @@ router.post('/register', async (req, res) => {
                 email: newUser.email,
                 subscription: newUser.subscription,
                 avatarURL: newUser.avatarURL,
-            }
+                verificationToken: newUser.verificationToken
+            },
+            message: "Verification email sent"
         });
     } catch (error) {
         res.status(500).json({ message: 'Internal Server Error' });
@@ -173,5 +196,66 @@ router.patch('/users/avatars', authMiddleware, upload.single('avatar'), async (r
         return next(err);
     }
 });
+
+router.get("/users/verify/:verificationToken", async (req, res, next) => {
+    const { verificationToken } = req.params;
+    console.log('Received verification token:', verificationToken);
+
+    try {
+        const user = await User.findOne({ verificationToken });
+        if (!user) {
+            console.error('User not found with token:', verificationToken);
+            return res.status(404).json({ message: 'User not found' });
+        } else {
+            user.verify = true;
+            user.verificationToken = null;
+            await user.save();
+            console.log('User verified successfully:', user.email);
+            const email = user.email;
+            res.status(200).json({ message: 'Verification successful', email});
+        }
+    } catch (err) {
+        console.error('Error during verification:', err);
+        return res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
+
+router.post('/users/verify', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ message: 'missing required field email' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (user.verify) {
+            return res.status(400).json({ message: 'Verification has already been passed' });
+        }
+
+        const verificationLink = `http://localhost:3000/api/auth/users/verify/${user.verificationToken}`;
+
+        const msg = {
+            to: email,
+            from: 'badeadaniella@gmail.com',
+            subject: 'Verify your email address',
+            text: `Please verify your email address by clicking on the following link: ${verificationLink}`,
+            html: `<strong>Please verify your email address by clicking on the following link: <a href="${verificationLink}">Verify Email</a></strong>`,
+        }
+        await sgMail.send(msg);
+
+        res.status(200).json({ message: 'Verification email sent' });
+    } catch (error) {
+        console.error('Error during resending verification email:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
+    }
+});
+
 
 module.exports = router;
