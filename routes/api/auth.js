@@ -21,6 +21,7 @@ router.post('/register', async (req, res) => {
     }
 
     const user = await User.findOne({ email });
+    console.log(user);
     if (user) {
         return res.status(409).json({
             status: "error",
